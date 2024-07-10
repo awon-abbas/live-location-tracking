@@ -1,10 +1,13 @@
+// App.js
+import React from "react";
 import "./App.css";
+import MapComponent from "./MapComponent";
 
 function App() {
   return (
-    <>
-      <div>live location tracking</div>
-    </>
+    <div className="App">
+      <MapComponent />
+    </div>
   );
 }
 
