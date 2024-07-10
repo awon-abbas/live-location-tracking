@@ -1,4 +1,4 @@
-// MapComponent.js
+// LocationTracker.js
 import React, { useEffect, useState } from 'react';
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import L from 'leaflet';
@@ -16,8 +16,48 @@ L.Icon.Default.mergeOptions({
 
 const socket = io('http://localhost:4000');
 
-const MapComponent = () => {
-  const [position, setPosition] = useState([51.505, -0.09]);
+const LocationTracker = () => {
+  const [position, setPosition] = useState(null);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const { latitude, longitude } = position.coords;
+          setPosition([latitude, longitude]);
+
+          // Send initial location to backend
+          socket.emit('sendLocation', { lat: latitude, lng: longitude });
+
+          const watchId = navigator.geolocation.watchPosition(
+            (position) => {
+              const { latitude, longitude } = position.coords;
+              const newPosition = [latitude, longitude];
+              setPosition(newPosition);
+
+              // Send location to backend
+              socket.emit('sendLocation', { lat: latitude, lng: longitude });
+            },
+            (err) => {
+              setError(err.message);
+            },
+            { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
+          );
+
+          return () => {
+            navigator.geolocation.clearWatch(watchId);
+          };
+        },
+        (err) => {
+          setError(err.message);
+        },
+        { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
+      );
+    } else {
+      setError('Geolocation is not supported by this browser.');
+    }
+  }, []);
 
   useEffect(() => {
     socket.on('locationUpdate', (newPosition) => {
@@ -27,19 +67,26 @@ const MapComponent = () => {
     return () => socket.off('locationUpdate');
   }, []);
 
+  if (!position) {
+    return <div>Loading...</div>;
+  }
+
   return (
-    <MapContainer center={position} zoom={13} style={{ height: '100vh', width: '100%' }}>
-      <TileLayer
-        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-      />
-      <Marker position={position}>
-        <Popup>
-          A pretty CSS3 popup.<br /> Easily customizable.
-        </Popup>
-      </Marker>
-    </MapContainer>
+    <div>
+      {error && <p>Error: {error}</p>}
+      <MapContainer center={position} zoom={13} style={{ height: '100vh', width: '100%' }}>
+        <TileLayer
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        />
+        <Marker position={position}>
+          <Popup>
+            You are here!
+          </Popup>
+        </Marker>
+      </MapContainer>
+    </div>
   );
 };
 
-export default MapComponent;
+export default LocationTracker;
